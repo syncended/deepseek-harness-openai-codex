@@ -14,7 +14,10 @@
   "files": [
     "lib/index.js",
     "lib/client.js",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "docs/assets/codex-limits.png",
+    "README.md",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public"
