@@ -69,7 +69,7 @@ Like other DSH credential settings, Web login is restricted to a loopback/same-o
 
 1. The plugin stores `{ access, refresh, expires }` in `$DSH_HOME/openai-codex.json` by default.
 2. It publishes only the live access token to the DSH credential service as `OPENAI_CODEX_TOKEN`.
-3. The bundled `llm-pi-ai` route uses the `openai-codex-responses` API and the installed pi-ai Codex model catalog.
+3. The bundled `llm-pi-ai` route uses the `openai-codex-responses` API, keeps the installed pi-ai Codex models, and adds a `gpt-6-astra` fallback until pi-ai ships that catalog entry.
 4. The refresh loop renews credentials shortly before expiry without requiring a Host restart.
 5. The Web limits API calls OpenAI from the Host and returns only normalized percentages, reset times, and optional credit balances; OAuth tokens never cross into browser JavaScript.
 

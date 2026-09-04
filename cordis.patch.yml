@@ -3,7 +3,9 @@
 # Two layers:
 #   1. Declare the `openai-codex` route defaults on llm-pi-ai's composition
 #      base, so Codex models appear with no manual `dsh settings set` step.
-#      The user's settings.yaml still layers over this and wins on conflict.
+#      Keep the installed pi-ai catalog entries and add GPT-6 Astra explicitly
+#      until pi-ai ships it. The user's settings.yaml still layers over this
+#      and wins on conflict.
 #   2. Register this plugin so it is active when dsh boots.  The user's own
 #      cordis.patch.yml and any other bundle layers can patch these rows
 #      further by id ("llm-pi-ai", "openai-codex").
@@ -14,6 +16,27 @@
       openai-codex:
         displayName: OpenAI Codex
         apiKeyEnv: OPENAI_CODEX_TOKEN
+        defaultMaxTokens: 128000
+        models:
+          - id: gpt-5.3-codex-spark
+          - id: gpt-5.4
+          - id: gpt-5.4-mini
+          - id: gpt-5.5
+          - id: gpt-5.6-luna
+          - id: gpt-5.6-sol
+          - id: gpt-5.6-terra
+          - id: gpt-6-astra
+            name: GPT-6 Astra
+            contextWindow: 272000
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max
 - insert:
     - id: openai-codex
       name: "@syncended/dsh-codex"
