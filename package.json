@@ -1,6 +1,6 @@
 {
   "name": "@syncended/dsh-codex",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "OpenAI Codex (ChatGPT Plus/Pro) provider for DeepSeek Harness, with Web UI and CLI device-code OAuth login.",
   "license": "MIT",
   "type": "module",
