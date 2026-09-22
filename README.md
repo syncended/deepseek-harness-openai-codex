@@ -71,7 +71,7 @@ Like other DSH credential settings, Web login is restricted to a loopback/same-o
 1. The plugin stores `{ access, refresh, expires }` in `$DSH_HOME/openai-codex.json` by default.
 2. It publishes only the live access token to the DSH credential service as `OPENAI_CODEX_TOKEN`.
 3. The bundled `llm-pi-ai` route uses the `openai-codex-responses` API and serves the installed pi-ai Codex catalog directly. It declares no `models` list: in `dsh-llm-pi-ai` a configured list *replaces* the catalog rather than extending it, so a hard-coded list would freeze model availability at this package's release.
-4. The plugin then mirrors OpenAI's own Codex model catalog into the `llm-pi-ai` settings section, because the installed pi-ai catalog is a snapshot that lags what ChatGPT actually serves. New models (for example `gpt-6-sol` before pi-ai shipped it) appear as soon as OpenAI lists them; models OpenAI hides, models it marks as superseded through `upgrade.model`, and ids in `modelCatalogExclude` are dropped. The sync runs at startup, after login, on `/codex models`, and every `modelCatalogRefreshMs`.
+4. The plugin then mirrors OpenAI's own Codex model catalog into the `llm-pi-ai` settings section, because the installed pi-ai catalog is a snapshot that lags what ChatGPT actually serves. Every model OpenAI still offers appears — including models it marks with an `upgrade` successor, which remain usable until OpenAI retires them — while rows the catalog hides or excludes from the API are dropped. The sync runs at startup, after login, on `/codex models`, and every `modelCatalogRefreshMs`.
 5. The refresh loop renews credentials shortly before expiry without requiring a Host restart.
 6. The Web limits API calls OpenAI from the Host and returns only normalized percentages, reset times, and optional credit balances; OAuth tokens never cross into browser JavaScript.
 
@@ -89,8 +89,8 @@ The defaults normally need no changes. To override them, edit the existing `open
     deviceCodeTimeoutSeconds: 900
     refreshWindowMs: 300000
     modelCatalogRefreshMs: 21600000
-    modelCatalogExclude:
-      - gpt-6-astra
+    # modelCatalogExclude:
+    #   - gpt-5.5
     # dshHome: /absolute/path/to/dsh-home
     # tokenFile: /absolute/private/path/openai-codex.json
 ```
@@ -102,7 +102,7 @@ The defaults normally need no changes. To override them, edit the existing `open
 | `deviceCodeTimeoutSeconds` | `900` | Maximum time to approve a device login. |
 | `refreshWindowMs` | `300000` | Refresh-loop scheduling window; the implementation still refreshes only near expiry. |
 | `modelCatalogRefreshMs` | `21600000` | Interval between Codex model-catalog syncs (6 hours). |
-| `modelCatalogExclude` | `[gpt-6-astra]` | Model ids to hide from the synced catalog even though OpenAI still lists them. Set `[]` to offer everything the catalog lists. |
+| `modelCatalogExclude` | `[]` | Optional ids to hide even though the catalog still offers them. Empty by default: every available model is published. |
 | `dshHome` | normal DSH home | Alternate base directory used to derive the default token path. |
 | `tokenFile` | `$DSH_HOME/openai-codex.json` | Absolute token persistence path; takes precedence over `dshHome`. |
 
@@ -122,15 +122,16 @@ llm-pi-ai:
   providers:
     openai-codex:
       models:
+        - id: gpt-6-astra
         - id: gpt-6-sol
         - id: gpt-6-luna
 ```
 
-The sync serves only the models this deployment should offer:
+The sync publishes every model the catalog marks as available:
 
-- rows the catalog hides (`visibility: hide`) or excludes from the API (`supported_in_api: false`) — `gpt-reserve`, `codex-auto-review`;
-- rows the catalog marks as superseded: their `upgrade.model` names another listable model. When `gpt-6-sol` landed, `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.5` (which retires 2026-10-14) disappeared from the selector without any configuration;
-- ids listed in `modelCatalogExclude`. OpenAI still lists `gpt-6-astra` after `gpt-6-sol`/`gpt-6-luna` shipped and gives it no `upgrade` marker, so the bundle hides it explicitly; set `modelCatalogExclude: []` to offer it again.
+- rows the catalog hides (`visibility: hide`) or excludes from the API (`supported_in_api: false`) are dropped — `gpt-reserve`, `codex-auto-review` are internal and never usable;
+- everything else is published, including models the catalog carries an `upgrade` hint for (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`). An `upgrade` is a migration suggestion, not a retirement: OpenAI keeps those models servable, so they stay selectable;
+- `modelCatalogExclude` is the only way to hide an available model, and it is empty by default.
 
 Models the catalog describes keep their context window, token cap, modalities, and reasoning levels; a synced entry overrides only the fields it sets. Reasoning levels the harness does not know (for example `ultra`) are dropped rather than mistranslated.
 
@@ -151,7 +152,7 @@ If `credentialRef` is changed, update the matching provider mapping in the exist
 
 - **No Codex models:** confirm the plugin is installed in the active profile, restart that profile, and verify `/codex status` reports a credential. If only some Codex models show, a hand-pinned `models` list is shadowing the synced one.
 - **A new Codex model is missing:** run `/codex models` to re-read OpenAI's catalog, then check the Host log if the sync failed. A model whose `minimal_client_version` is newer than the plugin's `CODEX_CLIENT_VERSION` stays hidden until the plugin is updated.
-- **A model disappeared after a sync:** the catalog marks it superseded (`upgrade.model` naming a served model), or its id is in `modelCatalogExclude`. Remove the id from the exclude list or pin a manual `models` list to keep it.
+- **A model disappeared after a sync:** only models the catalog hides or drops from the API disappear on their own, plus any id in `modelCatalogExclude`. Clear the exclude list or pin a manual `models` list to keep one.
 - **Login never completes:** confirm outbound access to OpenAI endpoints, repeat `/codex login`, and approve before the 15-minute timeout.
 - **Remote Web login is rejected:** connect through loopback using an authenticated tunnel; credential mutation is intentionally restricted.
 - **Limits fail but models work:** the undocumented usage endpoint may have changed or be unavailable; model requests use a separate API path.

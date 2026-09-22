@@ -95,22 +95,30 @@ test("keeps a bare entry when the catalog omits optional fields", () => {
   assert.deepEqual(entries, [{ id: "gpt-5.5", name: "gpt-5.5" }]);
 });
 
-test("drops models the catalog marks as superseded", () => {
+test("keeps every available model, including ones with an upgrade successor", () => {
   const entries = codexModelCatalogEntries({
     models: [
+      model({ slug: "gpt-6-astra", display_name: "GPT-6-Astra" }),
       model({ slug: "gpt-6-sol", display_name: "GPT-6-Sol" }),
       model({ slug: "gpt-6-luna", display_name: "GPT-6-Luna" }),
       model({ slug: "gpt-5.6-sol", display_name: "GPT-5.6-Sol", upgrade: { model: "gpt-6-sol" } }),
+      model({ slug: "gpt-5.6-terra", display_name: "GPT-5.6-Terra", upgrade: { model: "gpt-6-sol" } }),
       model({ slug: "gpt-5.6-luna", display_name: "GPT-5.6-Luna", upgrade: { model: "gpt-6-luna" } }),
       model({ slug: "gpt-5.5", display_name: "GPT-5.5", upgrade: { model: "gpt-5.6-sol" } }),
-      model({ slug: "gpt-legacy", display_name: "GPT Legacy", upgrade: { model: "gpt-not-listed" } }),
     ],
   });
 
-  // gpt-5.5 upgrades to gpt-5.6-sol, which is itself superseded by gpt-6-sol:
-  // the chain retires transitively. An upgrade naming a model the catalog does
-  // not list leaves its owner served.
-  assert.deepEqual(entries.map((entry) => entry.id), ["gpt-6-sol", "gpt-6-luna", "gpt-legacy"]);
+  // An `upgrade` marker is a migration hint, not a retirement: OpenAI keeps the
+  // model servable, so the selector keeps offering it.
+  assert.deepEqual(entries.map((entry) => entry.id), [
+    "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5",
+  ]);
 });
 
 test("hides model ids named in the exclude option", () => {

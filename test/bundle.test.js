@@ -28,7 +28,7 @@ test("bundle registers the plugin row", async () => {
   );
 });
 
-test("bundle hides Astra from the synced catalog", async () => {
+test("bundle excludes no models by default", async () => {
   const bundle = await readFile(bundleUrl, "utf8");
-  assert.match(bundle, /modelCatalogExclude:\n {10}- gpt-6-astra/);
+  assert.doesNotMatch(bundle, /modelCatalogExclude:/);
 });
