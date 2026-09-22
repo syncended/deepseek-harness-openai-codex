@@ -7,9 +7,10 @@
 #      dsh-llm-pi-ai *replaces* the installed pi-ai catalog instead of
 #      extending it, which would freeze the Codex catalog at this package's
 #      release. Without it, every Codex model the installed pi-ai catalog
-#      ships (Astra, Sol, Luna, and whatever it adds later) is served as soon
-#      as that catalog is upgraded. The user's settings.yaml still layers over
-#      this and wins on conflict.
+#      ships is served immediately, and the plugin then overwrites `models`
+#      at runtime with OpenAI's live Codex catalog, so models pi-ai has not
+#      shipped yet (for example gpt-6-sol) appear too. The user's settings.yaml
+#      still layers over this and wins on conflict.
 #   2. Register this plugin so it is active when dsh boots.  The user's own
 #      cordis.patch.yml and any other bundle layers can patch these rows
 #      further by id ("llm-pi-ai", "openai-codex").

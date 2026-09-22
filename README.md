@@ -10,7 +10,7 @@ The plugin adds device-code OAuth login through the Web settings UI and an inter
 
 <p align="center"><sub>Rendered by the real plugin UI with sanitized demonstration balances.</sub></p>
 
-> The limits view uses OpenAI's undocumented Codex usage endpoint. Its availability and response shape may change without notice.
+> The limits view and the live model-catalog sync use OpenAI's undocumented Codex endpoints. Their availability and response shape may change without notice.
 
 ## Requirements
 
@@ -63,15 +63,17 @@ Like other DSH credential settings, Web login is restricted to a loopback/same-o
 | --- | --- |
 | `/codex login` | Start the device-code flow and print the verification URL and code. |
 | `/codex status` | Show token status and expiry. |
+| `/codex models` | Re-read OpenAI's Codex model catalog and republish it to the model selector. |
 | `/codex logout` | Delete the stored token file and unpublish the live credential. |
 
 ## How it works
 
 1. The plugin stores `{ access, refresh, expires }` in `$DSH_HOME/openai-codex.json` by default.
 2. It publishes only the live access token to the DSH credential service as `OPENAI_CODEX_TOKEN`.
-3. The bundled `llm-pi-ai` route uses the `openai-codex-responses` API and serves the installed pi-ai Codex catalog directly. It declares no `models` list: in `dsh-llm-pi-ai` a configured list *replaces* the catalog rather than extending it, so pinning one would freeze model availability at this package's release. Astra, Sol, Luna, and any model a later catalog adds appear without a plugin upgrade.
-4. The refresh loop renews credentials shortly before expiry without requiring a Host restart.
-5. The Web limits API calls OpenAI from the Host and returns only normalized percentages, reset times, and optional credit balances; OAuth tokens never cross into browser JavaScript.
+3. The bundled `llm-pi-ai` route uses the `openai-codex-responses` API and serves the installed pi-ai Codex catalog directly. It declares no `models` list: in `dsh-llm-pi-ai` a configured list *replaces* the catalog rather than extending it, so a hard-coded list would freeze model availability at this package's release.
+4. The plugin then mirrors OpenAI's own Codex model catalog into the `llm-pi-ai` settings section, because the installed pi-ai catalog is a snapshot that lags what ChatGPT actually serves. New models (for example `gpt-6-sol` before pi-ai shipped it) appear as soon as OpenAI lists them; models OpenAI hides are dropped. The sync runs at startup, after login, on `/codex models`, and every `modelCatalogRefreshMs`.
+5. The refresh loop renews credentials shortly before expiry without requiring a Host restart.
+6. The Web limits API calls OpenAI from the Host and returns only normalized percentages, reset times, and optional credit balances; OAuth tokens never cross into browser JavaScript.
 
 Protect `$DSH_HOME`: the token file is sensitive local credential state. `/codex logout` removes it and clears the published credential.
 
@@ -86,6 +88,7 @@ The defaults normally need no changes. To override them, edit the existing `open
     credentialRef: OPENAI_CODEX_TOKEN
     deviceCodeTimeoutSeconds: 900
     refreshWindowMs: 300000
+    modelCatalogRefreshMs: 21600000
     # dshHome: /absolute/path/to/dsh-home
     # tokenFile: /absolute/private/path/openai-codex.json
 ```
@@ -96,6 +99,7 @@ The defaults normally need no changes. To override them, edit the existing `open
 | `credentialRef` | `OPENAI_CODEX_TOKEN` | DSH credential ref receiving the live access token. |
 | `deviceCodeTimeoutSeconds` | `900` | Maximum time to approve a device login. |
 | `refreshWindowMs` | `300000` | Refresh-loop scheduling window; the implementation still refreshes only near expiry. |
+| `modelCatalogRefreshMs` | `21600000` | Interval between Codex model-catalog syncs (6 hours). |
 | `dshHome` | normal DSH home | Alternate base directory used to derive the default token path. |
 | `tokenFile` | `$DSH_HOME/openai-codex.json` | Absolute token persistence path; takes precedence over `dshHome`. |
 
@@ -103,19 +107,23 @@ Token-path precedence is `tokenFile`, then `dshHome`, then `DSH_HOME`, then `~/.
 
 ### Model list
 
-The bundle intentionally declares no `models` list on the `openai-codex` provider, so the route serves the whole Codex catalog installed with `pi-ai`. Adding one replaces that catalog instead of extending it — a list naming eight models hides every other model, including ones a newer catalog ships. Pin a list only when you really want a fixed subset:
+Two sources feed the selector, in this order:
+
+1. The bundle declares no `models` list, so the route serves the whole Codex catalog installed with `pi-ai`.
+2. The plugin overwrites `models` in the `llm-pi-ai` settings section with the live list from OpenAI's own Codex model catalog (`/backend-api/codex/models`). This is what makes models appear that `pi-ai` has not shipped yet. The write lands in `$DSH_HOME/settings.yaml`, so the last synced list survives a Host restart and a temporarily unreachable backend.
+
+A `models` list replaces the catalog instead of extending it, which is why the plugin writes the complete live list rather than individual entries. To pin a subset by hand, edit the `openai-codex` provider in `settings.yaml`; the next scheduled sync will overwrite it again, so set `modelCatalogRefreshMs` to a large value if a manual list must stand.
 
 ```yaml
-- id: llm-pi-ai
-  config:
-    providers:
-      openai-codex:
-        models:
-          - id: gpt-5.6-luna
-          - id: gpt-6-astra
+llm-pi-ai:
+  providers:
+    openai-codex:
+      models:
+        - id: gpt-5.6-luna
+        - id: gpt-6-astra
 ```
 
-Models the catalog describes keep their context window, token cap, modalities, and reasoning levels; a `models` entry overrides only the fields it sets.
+Models the catalog describes keep their context window, token cap, modalities, and reasoning levels; a synced entry overrides only the fields it sets. Models the Codex catalog marks as hidden or excludes from the API are never published. Reasoning levels the harness does not know (for example `ultra`) are dropped rather than mistranslated.
 
 If `credentialRef` is changed, update the matching provider mapping in the existing `llm-pi-ai` row as well; otherwise the route continues reading `OPENAI_CODEX_TOKEN`:
 
@@ -130,11 +138,12 @@ If `credentialRef` is changed, update the matching provider mapping in the exist
 
 ## Troubleshooting
 
-- **No Codex models:** confirm the plugin is installed in the active profile, restart that profile, and verify `/codex status` reports a credential. If only some Codex models show, a `models` list is pinned in the profile's `llm-pi-ai` row or in the user's `settings.yaml`; remove it to serve the installed `pi-ai` catalog.
-- **A new Codex model is missing:** the model appears once the installed `pi-ai` catalog ships it; a pinned `models` list or an outdated `pi-ai` keeps it hidden.
+- **No Codex models:** confirm the plugin is installed in the active profile, restart that profile, and verify `/codex status` reports a credential. If only some Codex models show, a hand-pinned `models` list is shadowing the synced one.
+- **A new Codex model is missing:** run `/codex models` to re-read OpenAI's catalog, then check the Host log if the sync failed. A model whose `minimal_client_version` is newer than the plugin's `CODEX_CLIENT_VERSION` stays hidden until the plugin is updated.
 - **Login never completes:** confirm outbound access to OpenAI endpoints, repeat `/codex login`, and approve before the 15-minute timeout.
 - **Remote Web login is rejected:** connect through loopback using an authenticated tunnel; credential mutation is intentionally restricted.
 - **Limits fail but models work:** the undocumented usage endpoint may have changed or be unavailable; model requests use a separate API path.
+- **Model catalog sync fails:** `/backend-api/codex/models` is undocumented and may change; the last synced list stays in `$DSH_HOME/settings.yaml`, so the selector keeps working until a later sync succeeds.
 - **Repeated sign-in after configuration changes:** verify the token path is writable and `credentialRef` matches the `llm-pi-ai` provider mapping.
 
 ## Development
