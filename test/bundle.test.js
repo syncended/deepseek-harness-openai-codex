@@ -4,21 +4,26 @@ import test from "node:test";
 
 const bundleUrl = new URL("../cordis.patch.yml", import.meta.url);
 
-test("bundle preserves the Codex catalog and adds GPT-6 Astra", async () => {
+test("bundle declares the Codex route without pinning a model list", async () => {
   const bundle = await readFile(bundleUrl, "utf8");
-  const modelIds = [...bundle.matchAll(/^ {10}- id: (\S+)$/gm)].map((match) => match[1]);
 
-  assert.deepEqual(modelIds, [
-    "gpt-5.3-codex-spark",
-    "gpt-5.4",
-    "gpt-5.4-mini",
-    "gpt-5.5",
-    "gpt-5.6-luna",
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "gpt-6-astra",
-  ]);
+  assert.match(
+    bundle,
+    /openai-codex:\n {8}displayName: OpenAI Codex\n {8}apiKeyEnv: OPENAI_CODEX_TOKEN/,
+  );
   assert.match(bundle, /defaultMaxTokens: 128000/);
-  assert.match(bundle, /- id: gpt-6-astra\n {12}name: GPT-6 Astra\n {12}contextWindow: 272000/);
-  assert.match(bundle, /reasoningEfforts:\n {14}low: low\n {14}medium: medium\n {14}high: high\n {14}xhigh: xhigh\n {14}max: max/);
+
+  // dsh-llm-pi-ai resolves `entries = configured.length > 0 ? configured : catalog`,
+  // so any configured `models` list replaces the installed pi-ai catalog and
+  // freezes the Codex catalog at this package's release. Pin nothing.
+  assert.doesNotMatch(bundle, /^\s*models:/m);
+  assert.doesNotMatch(bundle, /- id: gpt-/);
+});
+
+test("bundle registers the plugin row", async () => {
+  const bundle = await readFile(bundleUrl, "utf8");
+  assert.match(
+    bundle,
+    /- insert:\n {4}- id: openai-codex\n {6}name: "@syncended\/dsh-codex"/,
+  );
 });

@@ -69,7 +69,7 @@ Like other DSH credential settings, Web login is restricted to a loopback/same-o
 
 1. The plugin stores `{ access, refresh, expires }` in `$DSH_HOME/openai-codex.json` by default.
 2. It publishes only the live access token to the DSH credential service as `OPENAI_CODEX_TOKEN`.
-3. The bundled `llm-pi-ai` route uses the `openai-codex-responses` API, keeps the installed pi-ai Codex models, and adds a `gpt-6-astra` fallback until pi-ai ships that catalog entry.
+3. The bundled `llm-pi-ai` route uses the `openai-codex-responses` API and serves the installed pi-ai Codex catalog directly. It declares no `models` list: in `dsh-llm-pi-ai` a configured list *replaces* the catalog rather than extending it, so pinning one would freeze model availability at this package's release. Astra, Sol, Luna, and any model a later catalog adds appear without a plugin upgrade.
 4. The refresh loop renews credentials shortly before expiry without requiring a Host restart.
 5. The Web limits API calls OpenAI from the Host and returns only normalized percentages, reset times, and optional credit balances; OAuth tokens never cross into browser JavaScript.
 
@@ -101,6 +101,22 @@ The defaults normally need no changes. To override them, edit the existing `open
 
 Token-path precedence is `tokenFile`, then `dshHome`, then `DSH_HOME`, then `~/.dsh`.
 
+### Model list
+
+The bundle intentionally declares no `models` list on the `openai-codex` provider, so the route serves the whole Codex catalog installed with `pi-ai`. Adding one replaces that catalog instead of extending it — a list naming eight models hides every other model, including ones a newer catalog ships. Pin a list only when you really want a fixed subset:
+
+```yaml
+- id: llm-pi-ai
+  config:
+    providers:
+      openai-codex:
+        models:
+          - id: gpt-5.6-luna
+          - id: gpt-6-astra
+```
+
+Models the catalog describes keep their context window, token cap, modalities, and reasoning levels; a `models` entry overrides only the fields it sets.
+
 If `credentialRef` is changed, update the matching provider mapping in the existing `llm-pi-ai` row as well; otherwise the route continues reading `OPENAI_CODEX_TOKEN`:
 
 ```yaml
@@ -114,7 +130,8 @@ If `credentialRef` is changed, update the matching provider mapping in the exist
 
 ## Troubleshooting
 
-- **No Codex models:** confirm the plugin is installed in the active profile, restart that profile, and verify `/codex status` reports a credential.
+- **No Codex models:** confirm the plugin is installed in the active profile, restart that profile, and verify `/codex status` reports a credential. If only some Codex models show, a `models` list is pinned in the profile's `llm-pi-ai` row or in the user's `settings.yaml`; remove it to serve the installed `pi-ai` catalog.
+- **A new Codex model is missing:** the model appears once the installed `pi-ai` catalog ships it; a pinned `models` list or an outdated `pi-ai` keeps it hidden.
 - **Login never completes:** confirm outbound access to OpenAI endpoints, repeat `/codex login`, and approve before the 15-minute timeout.
 - **Remote Web login is rejected:** connect through loopback using an authenticated tunnel; credential mutation is intentionally restricted.
 - **Limits fail but models work:** the undocumented usage endpoint may have changed or be unavailable; model requests use a separate API path.
