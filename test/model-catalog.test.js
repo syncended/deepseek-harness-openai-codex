@@ -95,6 +95,48 @@ test("keeps a bare entry when the catalog omits optional fields", () => {
   assert.deepEqual(entries, [{ id: "gpt-5.5", name: "gpt-5.5" }]);
 });
 
+test("drops models the catalog marks as superseded", () => {
+  const entries = codexModelCatalogEntries({
+    models: [
+      model({ slug: "gpt-6-sol", display_name: "GPT-6-Sol" }),
+      model({ slug: "gpt-6-luna", display_name: "GPT-6-Luna" }),
+      model({ slug: "gpt-5.6-sol", display_name: "GPT-5.6-Sol", upgrade: { model: "gpt-6-sol" } }),
+      model({ slug: "gpt-5.6-luna", display_name: "GPT-5.6-Luna", upgrade: { model: "gpt-6-luna" } }),
+      model({ slug: "gpt-5.5", display_name: "GPT-5.5", upgrade: { model: "gpt-5.6-sol" } }),
+      model({ slug: "gpt-legacy", display_name: "GPT Legacy", upgrade: { model: "gpt-not-listed" } }),
+    ],
+  });
+
+  // gpt-5.5 upgrades to gpt-5.6-sol, which is itself superseded by gpt-6-sol:
+  // the chain retires transitively. An upgrade naming a model the catalog does
+  // not list leaves its owner served.
+  assert.deepEqual(entries.map((entry) => entry.id), ["gpt-6-sol", "gpt-6-luna", "gpt-legacy"]);
+});
+
+test("hides model ids named in the exclude option", () => {
+  const payload = {
+    models: [
+      model({ slug: "gpt-6-astra" }),
+      model({ slug: "gpt-6-sol", display_name: "GPT-6-Sol" }),
+      model({ slug: "gpt-6-luna", display_name: "GPT-6-Luna" }),
+    ],
+  };
+
+  assert.deepEqual(codexModelCatalogEntries(payload).map((entry) => entry.id), [
+    "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
+  ]);
+  assert.deepEqual(
+    codexModelCatalogEntries(payload, { exclude: ["gpt-6-astra"] }).map((entry) => entry.id),
+    ["gpt-6-sol", "gpt-6-luna"],
+  );
+  assert.deepEqual(
+    codexModelCatalogEntries(payload, { exclude: [" gpt-6-astra ", "", 7, null] }).map((entry) => entry.id),
+    ["gpt-6-sol", "gpt-6-luna"],
+  );
+});
+
 test("returns nothing for a payload without a models array", () => {
   assert.deepEqual(codexModelCatalogEntries(undefined), []);
   assert.deepEqual(codexModelCatalogEntries({}), []);

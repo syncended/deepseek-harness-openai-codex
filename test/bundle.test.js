@@ -27,3 +27,8 @@ test("bundle registers the plugin row", async () => {
     /- insert:\n {4}- id: openai-codex\n {6}name: "@syncended\/dsh-codex"/,
   );
 });
+
+test("bundle hides Astra from the synced catalog", async () => {
+  const bundle = await readFile(bundleUrl, "utf8");
+  assert.match(bundle, /modelCatalogExclude:\n {10}- gpt-6-astra/);
+});

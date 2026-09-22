@@ -25,3 +25,10 @@
 - insert:
     - id: openai-codex
       name: "@syncended/dsh-codex"
+      config:
+        # OpenAI keeps listing gpt-6-astra after gpt-6-sol/gpt-6-luna shipped
+        # (its `upgrade` is null), but this deployment only wants the current
+        # cohort. Remove the entry to offer Astra again; the catalog's own
+        # `upgrade` markers retire superseded models without configuration.
+        modelCatalogExclude:
+          - gpt-6-astra
